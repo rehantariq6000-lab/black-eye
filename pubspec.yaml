@@ -1,0 +1,71 @@
+name: black_eye
+description: "Black Eye - Intelligent Privacy Protection System"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # Pick an image from gallery or camera
+  image_picker: ^1.1.2
+
+  # On-device OCR (text + bounding boxes)
+  google_mlkit_text_recognition: ^0.14.0
+
+  # On-device QR / barcode detection
+  google_mlkit_barcode_scanning: ^0.13.0
+
+  # Pick a PDF file from the device
+  file_picker: ^8.1.2
+
+  # Render PDF pages to images
+  pdfx: ^2.6.0
+
+  # Build a new (protected) PDF
+  pdf: ^3.11.1
+
+  # Edit image bytes (crop, blur, encode)
+  image: ^4.2.0
+
+  # Share the protected image
+  share_plus: ^10.0.2
+
+  # Save files into the app's folder
+  path_provider: ^2.1.4
+
+  # Remember which categories the user turned on
+  shared_preferences: ^2.3.2
+
+  # Save the protected image straight to the phone gallery
+  gal: ^2.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+  # Generates the app launcher icon from the logo
+  flutter_launcher_icons: ^0.14.1
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/logo.png
+
+# App icon configuration (run: dart run flutter_launcher_icons)
+flutter_launcher_icons:
+  image_path: "assets/logo.png"
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  web:
+    generate: true
+  windows:
+    generate: true
+  macos:
+    generate: true
