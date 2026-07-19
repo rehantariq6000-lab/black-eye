@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
@@ -8,12 +8,15 @@ import 'app_logo.dart';
 
 /// Shows the picked image in the middle of the screen.
 ///
-/// Before anything is picked it shows a friendly placeholder. While the
-/// app is working it shows a spinner. After scanning it shows either the
-/// protected image or the original, depending on [showOriginal].
+/// Before anything is picked it shows the logo and a hint. While the app is
+/// working it shows a spinner. After scanning it shows either the protected
+/// image or the original, depending on [showOriginal].
+///
+/// Uses image bytes (Image.memory) so it works on every platform, including
+/// the web.
 class ImagePreview extends StatelessWidget {
-  final File? original;
-  final File? masked;
+  final Uint8List? original;
+  final Uint8List? masked;
   final bool showOriginal;
   final bool busy;
 
@@ -43,15 +46,11 @@ class ImagePreview extends StatelessWidget {
     if (busy) {
       return const Center(child: CircularProgressIndicator());
     }
-
     if (original == null) {
       return const _Placeholder();
     }
-
-    // Show the original only if asked and we actually have a masked version.
-    final fileToShow =
-        (showOriginal || masked == null) ? original! : masked!;
-    return Center(child: Image.file(fileToShow, fit: BoxFit.contain));
+    final bytesToShow = (showOriginal || masked == null) ? original! : masked!;
+    return Center(child: Image.memory(bytesToShow, fit: BoxFit.contain));
   }
 }
 
@@ -66,10 +65,8 @@ class _Placeholder extends StatelessWidget {
         children: [
           const AppLogo(size: 96),
           const SizedBox(height: 16),
-          Text(
-            S.pickImageHint,
-            style: const TextStyle(fontSize: 16, color: Colors.grey),
-          ),
+          Text(S.pickImageHint,
+              style: const TextStyle(fontSize: 16, color: Colors.grey)),
         ],
       ),
     );

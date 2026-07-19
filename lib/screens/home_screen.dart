@@ -1,16 +1,14 @@
-import 'dart:io';
+import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:gal/gal.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../l10n/app_strings.dart';
 import '../models/detection_match.dart';
 import '../models/mask_style.dart';
-import '../services/detector_service.dart';
+import '../services/export/exporter.dart';
 import '../services/image_masker.dart';
+import '../services/ocr/detector.dart';
 import '../services/settings_service.dart';
 import '../theme.dart';
 import '../widgets/app_logo.dart';
@@ -23,6 +21,9 @@ import 'stats_screen.dart';
 
 /// The main screen. The user picks an image, the app scans it, blurs the
 /// sensitive parts, and lets the user compare, add manual blur, save, share.
+///
+/// Everything works on raw image bytes, so it runs the same on the web,
+/// mobile and desktop.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -32,12 +33,13 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final ImagePicker _picker = ImagePicker();
-  final DetectorService _detector = DetectorService();
+  final Detector _detector = createDetector();
   final ImageMasker _masker = ImageMasker();
+  final Exporter _exporter = createExporter();
   final SettingsService _settings = SettingsService();
 
-  File? _originalImage;
-  File? _maskedImage;
+  Uint8List? _originalBytes;
+  Uint8List? _maskedBytes;
   List<DetectionMatch> _matches = [];
   MaskStyle _maskStyle = MaskStyle.blur;
   bool _showOriginal = false;
@@ -49,15 +51,18 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  bool get _de => appLanguage.value == AppLanguage.german;
+
   /// Full workflow: pick -> scan -> blur -> show.
   Future<void> _pickAndProtect(ImageSource source) async {
     final picked = await _picker.pickImage(source: source);
     if (picked == null) return;
 
+    final bytes = await picked.readAsBytes();
     setState(() {
       _busy = true;
-      _originalImage = File(picked.path);
-      _maskedImage = null;
+      _originalBytes = bytes;
+      _maskedBytes = null;
       _showOriginal = false;
     });
 
@@ -66,11 +71,17 @@ class _HomeScreenState extends State<HomeScreen> {
       final keywords = await _settings.loadKeywords();
       _maskStyle = await _settings.loadMaskStyle();
 
-      _matches = await _detector.detect(_originalImage!, enabledKeys, keywords);
-      final masked = await _masker.maskImage(_originalImage!, _matches, _maskStyle);
+      _matches = await _detector.detect(
+        bytes: bytes,
+        filePath: picked.path.isEmpty ? null : picked.path,
+        enabledKeys: enabledKeys,
+        keywords: keywords,
+        german: _de,
+      );
+      final masked = _masker.maskBytes(bytes, _matches, _maskStyle);
       await _settings.addScanStats(_matches.length);
 
-      setState(() => _maskedImage = masked);
+      setState(() => _maskedBytes = masked);
     } catch (e) {
       _showMessage('${_de ? 'Fehler' : 'Something went wrong'}: $e');
     } finally {
@@ -80,18 +91,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Opens the manual-blur screen and re-masks with any boxes the user drew.
   Future<void> _addManualBlur() async {
-    if (_originalImage == null) return;
+    if (_originalBytes == null) return;
     final extra = await Navigator.of(context).push<List<DetectionMatch>>(
-      MaterialPageRoute(builder: (_) => ManualBlurScreen(image: _originalImage!)),
+      MaterialPageRoute(
+        builder: (_) => ManualBlurScreen(imageBytes: _originalBytes!),
+      ),
     );
     if (extra == null || extra.isEmpty) return;
 
     setState(() => _busy = true);
     try {
       _matches = [..._matches, ...extra];
-      final masked = await _masker.maskImage(_originalImage!, _matches, _maskStyle);
+      final masked = _masker.maskBytes(_originalBytes!, _matches, _maskStyle);
       setState(() {
-        _maskedImage = masked;
+        _maskedBytes = masked;
         _showOriginal = false;
       });
     } finally {
@@ -100,22 +113,21 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _share() async {
-    if (_maskedImage == null) return;
-    await Share.shareXFiles([XFile(_maskedImage!.path)],
-        text: 'Protected with Black Eye');
+    if (_maskedBytes == null) return;
+    await _exporter.share(_maskedBytes!, _fileName());
   }
 
-  Future<void> _saveToGallery() async {
-    if (_maskedImage == null) return;
+  Future<void> _save() async {
+    if (_maskedBytes == null) return;
     try {
-      await Gal.putImage(_maskedImage!.path);
-      _showMessage(S.savedToGallery);
+      await _exporter.save(_maskedBytes!, _fileName());
+      _showMessage(_de ? 'Gespeichert' : 'Saved');
     } catch (e) {
       _showMessage('${_de ? 'Fehler' : 'Could not save'}: $e');
     }
   }
 
-  bool get _de => appLanguage.value == AppLanguage.german;
+  String _fileName() => 'black_eye_protected.jpg';
 
   void _openSettings() => _open(const SettingsScreen());
   void _openStats() => _open(const StatsScreen());
@@ -123,8 +135,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _open(Widget screen) async {
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
-    // Language may have changed on the settings screen -> refresh this screen.
-    if (mounted) setState(() {});
+    if (mounted) setState(() {}); // language may have changed
   }
 
   void _showMessage(String text) {
@@ -168,8 +179,8 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Expanded(
                   child: ImagePreview(
-                    original: _originalImage,
-                    masked: _maskedImage,
+                    original: _originalBytes,
+                    masked: _maskedBytes,
                     showOriginal: _showOriginal,
                     busy: _busy,
                   ),
@@ -177,7 +188,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 10),
                 _buildOnDeviceBadge(),
                 const SizedBox(height: 10),
-                if (_maskedImage != null) _buildResultBar(),
+                if (_maskedBytes != null) _buildResultBar(),
                 const SizedBox(height: 12),
                 _buildActionButtons(),
               ],
@@ -194,10 +205,8 @@ class _HomeScreenState extends State<HomeScreen> {
       children: [
         const Icon(Icons.lock_outline, size: 14, color: AppColors.accent),
         const SizedBox(width: 6),
-        Text(
-          S.onDeviceBadge,
-          style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
-        ),
+        Text(S.onDeviceBadge,
+            style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
       ],
     );
   }
@@ -228,7 +237,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildActionButtons() {
-    final hasResult = _maskedImage != null && !_busy;
+    final hasResult = _maskedBytes != null && !_busy;
     return Column(
       children: [
         Row(
@@ -255,17 +264,14 @@ class _HomeScreenState extends State<HomeScreen> {
         const SizedBox(height: 12),
         Row(
           children: [
-            // Saving to the gallery is a mobile feature (not available on web).
-            if (!kIsWeb) ...[
-              Expanded(
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.download),
-                  label: Text(S.saveToGallery),
-                  onPressed: hasResult ? _saveToGallery : null,
-                ),
+            Expanded(
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.download),
+                label: Text(S.saveToGallery),
+                onPressed: hasResult ? _save : null,
               ),
-              const SizedBox(width: 12),
-            ],
+            ),
+            const SizedBox(width: 12),
             Expanded(
               child: FilledButton.icon(
                 icon: const Icon(Icons.share),

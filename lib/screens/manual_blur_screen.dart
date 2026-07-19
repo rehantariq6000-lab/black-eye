@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -12,10 +12,10 @@ import '../models/detection_match.dart';
 /// The user draws in screen coordinates, but we store the boxes in image
 /// (pixel) coordinates so they line up when the image is masked later.
 class ManualBlurScreen extends StatefulWidget {
-  /// The original image the boxes will be drawn on.
-  final File image;
+  /// The original image bytes the boxes will be drawn on.
+  final Uint8List imageBytes;
 
-  const ManualBlurScreen({super.key, required this.image});
+  const ManualBlurScreen({super.key, required this.imageBytes});
 
   @override
   State<ManualBlurScreen> createState() => _ManualBlurScreenState();
@@ -38,8 +38,7 @@ class _ManualBlurScreenState extends State<ManualBlurScreen> {
   }
 
   Future<void> _loadImageSize() async {
-    final bytes = await widget.image.readAsBytes();
-    final codec = await ui.instantiateImageCodec(bytes);
+    final codec = await ui.instantiateImageCodec(widget.imageBytes);
     final frame = await codec.getNextFrame();
     setState(() {
       _imageWidth = frame.image.width;
@@ -142,7 +141,7 @@ class _ManualBlurScreenState extends State<ManualBlurScreen> {
                 top: fit.offset.dy,
                 width: fit.size.width,
                 height: fit.size.height,
-                child: Image.file(widget.image, fit: BoxFit.fill),
+                child: Image.memory(widget.imageBytes, fit: BoxFit.fill),
               ),
               Positioned.fill(
                 child: CustomPaint(

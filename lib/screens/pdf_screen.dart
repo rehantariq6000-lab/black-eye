@@ -5,9 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../l10n/app_strings.dart';
-
-import '../services/detector_service.dart';
 import '../services/image_masker.dart';
+import '../services/ocr/detector.dart';
 import '../services/pdf_service.dart';
 import '../services/settings_service.dart';
 
@@ -21,10 +20,9 @@ class PdfScreen extends StatefulWidget {
 }
 
 class _PdfScreenState extends State<PdfScreen> {
-  final DetectorService _detector = DetectorService();
+  final Detector _detector = createDetector();
   final SettingsService _settings = SettingsService();
-  late final PdfService _pdfService =
-      PdfService(_detector, ImageMasker());
+  late final PdfService _pdfService = PdfService(_detector, ImageMasker());
 
   bool _busy = false;
   File? _resultPdf;
@@ -54,8 +52,9 @@ class _PdfScreenState extends State<PdfScreen> {
       final keywords = await _settings.loadKeywords();
       final style = await _settings.loadMaskStyle();
 
+      final german = appLanguage.value == AppLanguage.german;
       final output = await _pdfService.protectPdf(
-          File(path), enabledKeys, keywords, style);
+          File(path), enabledKeys, keywords, style, german);
       await _settings.addScanStats(output.hidden);
 
       setState(() {

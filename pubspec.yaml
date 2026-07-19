@@ -44,6 +44,9 @@ dependencies:
   # Save the protected image straight to the phone gallery
   gal: ^2.3.0
 
+  # Browser APIs (used for downloading on the web build)
+  web: ^1.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
