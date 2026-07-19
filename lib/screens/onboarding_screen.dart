@@ -4,11 +4,12 @@ import '../l10n/app_strings.dart';
 import '../services/settings_service.dart';
 import '../theme.dart';
 import '../widgets/app_logo.dart';
+import '../widgets/gradient_background.dart';
 import 'home_screen.dart';
 
 /// The welcome flow shown the first time the app is opened:
-/// 1. Logo + name and date of birth
-/// 2. Privacy agreement
+/// 1. Logo + name and date of birth (Day / Month / Year selectors)
+/// 2. A professional, GDPR/DSGVO-compliant privacy agreement
 /// After agreeing, the user goes to the main app.
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -22,7 +23,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final PageController _pageController = PageController();
   final TextEditingController _nameController = TextEditingController();
 
-  DateTime? _dateOfBirth;
+  int? _day;
+  int? _month; // 1-12
+  int? _year;
+  int _page = 0;
+  bool _agreed = false;
 
   @override
   void dispose() {
@@ -31,39 +36,28 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     super.dispose();
   }
 
-  bool get _de => appLanguage.value == AppLanguage.german;
+  bool get _profileComplete =>
+      _nameController.text.trim().isNotEmpty &&
+      _day != null &&
+      _month != null &&
+      _year != null;
 
   void _goToPrivacy() {
-    if (_nameController.text.trim().isEmpty || _dateOfBirth == null) {
+    if (!_profileComplete) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text(_de
-                ? 'Bitte Namen und Geburtsdatum eingeben.'
-                : 'Please enter your name and date of birth.')),
+        SnackBar(content: Text(S.fillDetailsError)),
       );
       return;
     }
     _pageController.nextPage(
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 350),
       curve: Curves.easeInOut,
     );
   }
 
-  Future<void> _pickDate() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime(now.year - 18),
-      firstDate: DateTime(now.year - 100),
-      lastDate: now,
-    );
-    if (picked != null) setState(() => _dateOfBirth = picked);
-  }
-
   Future<void> _agreeAndFinish() async {
-    final dob = _dateOfBirth!;
-    final dobText = '${dob.day}.${dob.month}.${dob.year}';
-    await _settings.completeOnboarding(_nameController.text.trim(), dobText);
+    final dob = '$_day.$_month.$_year';
+    await _settings.completeOnboarding(_nameController.text.trim(), dob);
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const HomeScreen()),
@@ -73,118 +67,251 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: PageView(
-          controller: _pageController,
-          physics: const NeverScrollableScrollPhysics(),
-          children: [
-            _buildProfilePage(),
-            _buildPrivacyPage(),
-          ],
+      body: GradientBackground(
+        child: SafeArea(
+          child: Column(
+            children: [
+              const SizedBox(height: 16),
+              _buildProgressDots(),
+              Expanded(
+                child: PageView(
+                  controller: _pageController,
+                  physics: const NeverScrollableScrollPhysics(),
+                  onPageChanged: (i) => setState(() => _page = i),
+                  children: [
+                    _buildProfilePage(),
+                    _buildPrivacyPage(),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
+  Widget _buildProgressDots() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(2, (i) {
+        final active = i == _page;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          width: active ? 24 : 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: active ? AppColors.accent : Colors.white24,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        );
+      }),
+    );
+  }
+
+  // ---- Page 1: profile -----------------------------------------------------
+
   Widget _buildProfilePage() {
-    return Padding(
-      padding: const EdgeInsets.all(24),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(28),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Spacer(),
-          const AppLogo(size: 140),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
+          const Center(child: AppLogo(size: 150)),
+          const SizedBox(height: 24),
           Text(
-            _de ? 'Willkommen bei Black Eye' : 'Welcome to Black Eye',
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            S.welcomeTitle,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           Text(
-            _de ? 'Datenschutz-Prüfung' : 'Privacy Screening',
-            style: const TextStyle(color: AppColors.accent, letterSpacing: 2),
+            S.tagline,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+                color: AppColors.accent, letterSpacing: 4, fontSize: 12),
           ),
-          const SizedBox(height: 36),
+          const SizedBox(height: 28),
+          Text(S.profileIntro,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.textMuted)),
+          const SizedBox(height: 24),
           TextField(
             controller: _nameController,
+            onChanged: (_) => setState(() {}),
+            textCapitalization: TextCapitalization.words,
             decoration: InputDecoration(
-              labelText: _de ? 'Name' : 'Name',
+              labelText: S.nameLabel,
               prefixIcon: const Icon(Icons.person_outline),
               border: const OutlineInputBorder(),
             ),
           ),
-          const SizedBox(height: 16),
-          InkWell(
-            onTap: _pickDate,
-            child: InputDecorator(
-              decoration: InputDecoration(
-                labelText: _de ? 'Geburtsdatum' : 'Date of birth',
-                prefixIcon: const Icon(Icons.cake_outlined),
-                border: const OutlineInputBorder(),
-              ),
-              child: Text(
-                _dateOfBirth == null
-                    ? (_de ? 'Tippen zum Auswählen' : 'Tap to select')
-                    : '${_dateOfBirth!.day}.${_dateOfBirth!.month}.${_dateOfBirth!.year}',
-              ),
-            ),
-          ),
-          const Spacer(),
+          const SizedBox(height: 20),
+          Text(S.dobLabel,
+              style: const TextStyle(
+                  fontWeight: FontWeight.w600, color: AppColors.silver)),
+          const SizedBox(height: 8),
+          _buildDobSelectors(),
+          const SizedBox(height: 32),
           FilledButton(
-            onPressed: _goToPrivacy,
-            child: Text(_de ? 'Weiter' : 'Continue'),
+            onPressed: _profileComplete ? _goToPrivacy : null,
+            child: Text(S.continueLabel),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildPrivacyPage() {
-    final points = _de
-        ? [
-            'Alle Verarbeitung geschieht auf deinem Gerät.',
-            'Es werden keine Bilder oder sensiblen Daten hochgeladen.',
-            'Es werden nur anonyme Statistiken gespeichert.',
-          ]
-        : [
-            'All processing happens on your device.',
-            'No images or sensitive data are ever uploaded.',
-            'Only anonymous statistics are stored.',
-          ];
+  Widget _buildDobSelectors() {
+    final now = DateTime.now();
+    final daysInMonth = (_year != null && _month != null)
+        ? DateTime(_year!, _month! + 1, 0).day
+        : 31;
 
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: 12),
-          const AppLogo(size: 80),
-          const SizedBox(height: 24),
-          Text(
-            _de ? 'Datenschutzvereinbarung' : 'Privacy agreement',
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+    return Row(
+      children: [
+        // Day
+        Expanded(
+          flex: 3,
+          child: _dropdown<int>(
+            hint: S.day,
+            value: _day,
+            items: [
+              for (var d = 1; d <= daysInMonth; d++)
+                DropdownMenuItem(value: d, child: Text('$d')),
+            ],
+            onChanged: (v) => setState(() => _day = v),
           ),
-          const SizedBox(height: 20),
-          for (final point in points)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.check_circle,
-                      color: AppColors.accent, size: 22),
-                  const SizedBox(width: 12),
-                  Expanded(child: Text(point, style: const TextStyle(fontSize: 15))),
-                ],
-              ),
-            ),
-          const Spacer(),
-          FilledButton.icon(
-            icon: const Icon(Icons.verified_user),
-            label: Text(_de ? 'Ich stimme zu' : 'I agree'),
-            onPressed: _agreeAndFinish,
+        ),
+        const SizedBox(width: 8),
+        // Month
+        Expanded(
+          flex: 4,
+          child: _dropdown<int>(
+            hint: S.month,
+            value: _month,
+            items: [
+              for (var m = 1; m <= 12; m++)
+                DropdownMenuItem(value: m, child: Text(S.months[m - 1])),
+            ],
+            onChanged: (v) => setState(() => _month = v),
           ),
-        ],
+        ),
+        const SizedBox(width: 8),
+        // Year
+        Expanded(
+          flex: 3,
+          child: _dropdown<int>(
+            hint: S.year,
+            value: _year,
+            items: [
+              for (var y = now.year; y >= now.year - 100; y--)
+                DropdownMenuItem(value: y, child: Text('$y')),
+            ],
+            onChanged: (v) => setState(() => _year = v),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _dropdown<T>({
+    required String hint,
+    required T? value,
+    required List<DropdownMenuItem<T>> items,
+    required ValueChanged<T?> onChanged,
+  }) {
+    return DropdownButtonFormField<T>(
+      initialValue: value,
+      isExpanded: true,
+      hint: Text(hint),
+      decoration: const InputDecoration(
+        border: OutlineInputBorder(),
+        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       ),
+      items: items,
+      onChanged: onChanged,
+    );
+  }
+
+  // ---- Page 2: privacy -----------------------------------------------------
+
+  Widget _buildPrivacyPage() {
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.verified_user, color: AppColors.accent),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(S.privacyTitle,
+                          style: const TextStyle(
+                              fontSize: 22, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(S.privacySubtitle,
+                    style: const TextStyle(color: AppColors.accent, fontSize: 13)),
+                const SizedBox(height: 20),
+                for (final section in S.privacySections)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(section.$1,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.silver,
+                                fontSize: 15)),
+                        const SizedBox(height: 4),
+                        Text(section.$2,
+                            style: const TextStyle(
+                                color: AppColors.textMuted, height: 1.4)),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        // Consent bar pinned at the bottom.
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: const BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              CheckboxListTile(
+                value: _agreed,
+                onChanged: (v) => setState(() => _agreed = v ?? false),
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+                activeColor: AppColors.accent,
+                title: Text(S.privacyConsent,
+                    style: const TextStyle(fontSize: 13)),
+              ),
+              const SizedBox(height: 8),
+              FilledButton.icon(
+                icon: const Icon(Icons.check),
+                label: Text(S.iAgree),
+                onPressed: _agreed ? _agreeAndFinish : null,
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

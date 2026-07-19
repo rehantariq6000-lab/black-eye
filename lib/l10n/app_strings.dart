@@ -73,6 +73,77 @@ class S {
       'Ziehe über einen Bereich, den du verstecken möchtest.');
   static String get done => _pick('Done', 'Fertig');
 
+  // ---- Onboarding ----------------------------------------------------------
+
+  static String get welcomeTitle => _pick('Welcome to Black Eye', 'Willkommen bei Black Eye');
+  static String get tagline => _pick('PRIVACY SCREENING', 'DATENSCHUTZ-PRÜFUNG');
+  static String get nameLabel => _pick('Full name', 'Vollständiger Name');
+  static String get dobLabel => _pick('Date of birth', 'Geburtsdatum');
+  static String get day => _pick('Day', 'Tag');
+  static String get month => _pick('Month', 'Monat');
+  static String get year => _pick('Year', 'Jahr');
+  static String get continueLabel => _pick('Continue', 'Weiter');
+  static String get fillDetailsError => _pick(
+      'Please enter your name and full date of birth.',
+      'Bitte geben Sie Ihren Namen und Ihr vollständiges Geburtsdatum ein.');
+  static String get profileIntro => _pick(
+      'Set up your profile to get started. Your details stay on this device.',
+      'Richten Sie Ihr Profil ein. Ihre Daten bleiben auf diesem Gerät.');
+
+  static List<String> get months => _de
+      ? const [
+          'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli',
+          'August', 'September', 'Oktober', 'November', 'Dezember'
+        ]
+      : const [
+          'January', 'February', 'March', 'April', 'May', 'June', 'July',
+          'August', 'September', 'October', 'November', 'December'
+        ];
+
+  // ---- Privacy agreement (GDPR / DSGVO) ------------------------------------
+
+  static String get privacyTitle =>
+      _pick('Privacy Agreement', 'Datenschutzvereinbarung');
+  static String get privacySubtitle => _pick(
+      'Compliant with the EU General Data Protection Regulation (GDPR).',
+      'Konform mit der EU-Datenschutz-Grundverordnung (DSGVO).');
+  static String get privacyConsent => _pick(
+      'I have read and understood this privacy notice and agree to it.',
+      'Ich habe diese Datenschutzhinweise gelesen, verstanden und stimme ihnen zu.');
+  static String get iAgree => _pick('I agree and continue', 'Zustimmen und fortfahren');
+
+  /// The privacy notice as a list of (heading, body) sections.
+  static List<(String, String)> get privacySections => _de
+      ? const [
+          ('1. Verarbeitung auf dem Gerät',
+              'Die gesamte Analyse von Bildern und Dokumenten erfolgt ausschließlich lokal auf Ihrem Gerät. Ihre Dateien werden niemals auf einen Server oder in eine Cloud hochgeladen.'),
+          ('2. Keine Datenerfassung',
+              'Wir erfassen, speichern oder übermitteln keine personenbezogenen Daten. Black Eye verwendet keine Benutzerkonten, keine Werbung und kein Tracking.'),
+          ('3. Anonyme Statistiken',
+              'Es werden lediglich anonyme Zähler (gescannte Dateien, versteckte Elemente) lokal auf Ihrem Gerät gespeichert. Diese verlassen das Gerät zu keinem Zeitpunkt.'),
+          ('4. Rechtsgrundlage (Art. 6 DSGVO)',
+              'Da keine personenbezogenen Daten an uns übertragen oder von uns verarbeitet werden, entsteht kein Verantwortlichenverhältnis im Sinne von Art. 4 DSGVO. Die Verarbeitung auf Ihrem Gerät unterliegt allein Ihrer Kontrolle.'),
+          ('5. Ihre Rechte',
+              'Sie behalten jederzeit die vollständige Kontrolle über Ihre Daten. Durch Deinstallation der App werden alle lokal gespeicherten Daten unwiderruflich gelöscht.'),
+        ]
+      : const [
+          ('1. On-device processing',
+              'All analysis of images and documents happens locally on your device. Your files are never uploaded to any server or cloud.'),
+          ('2. No data collection',
+              'We do not collect, store, or transmit any personal data. Black Eye has no user accounts, no advertising, and no tracking.'),
+          ('3. Anonymous statistics',
+              'Only anonymous counters (files scanned, items hidden) are stored locally on your device. They never leave it.'),
+          ('4. Legal basis (Art. 6 GDPR)',
+              'Because no personal data is transmitted to or processed by us, no data-controller relationship arises under Art. 4 GDPR. Processing on your device is under your sole control.'),
+          ('5. Your rights',
+              'You remain in full control of your data at all times. Uninstalling the app permanently deletes all locally stored data.'),
+        ];
+
+  // ---- Home footer ---------------------------------------------------------
+
+  static String get onDeviceBadge =>
+      _pick('On-device · Nothing is uploaded', 'Auf dem Gerät · Nichts wird hochgeladen');
+
   /// The display name of a detection category, by its key.
   static String categoryLabel(String key) {
     switch (key) {

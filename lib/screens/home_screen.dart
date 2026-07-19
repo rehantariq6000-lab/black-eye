@@ -12,6 +12,9 @@ import '../models/mask_style.dart';
 import '../services/detector_service.dart';
 import '../services/image_masker.dart';
 import '../services/settings_service.dart';
+import '../theme.dart';
+import '../widgets/app_logo.dart';
+import '../widgets/gradient_background.dart';
 import '../widgets/image_preview.dart';
 import 'manual_blur_screen.dart';
 import 'pdf_screen.dart';
@@ -131,8 +134,18 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: Text(S.appTitle),
+        backgroundColor: Colors.transparent,
+        titleSpacing: 8,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const AppLogo(size: 30),
+            const SizedBox(width: 10),
+            Text(S.appTitle),
+          ],
+        ),
         actions: [
           IconButton(icon: const Icon(Icons.settings), onPressed: _openSettings),
           PopupMenuButton<String>(
@@ -147,25 +160,45 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Expanded(
-              child: ImagePreview(
-                original: _originalImage,
-                masked: _maskedImage,
-                showOriginal: _showOriginal,
-                busy: _busy,
-              ),
+      body: GradientBackground(
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Expanded(
+                  child: ImagePreview(
+                    original: _originalImage,
+                    masked: _maskedImage,
+                    showOriginal: _showOriginal,
+                    busy: _busy,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                _buildOnDeviceBadge(),
+                const SizedBox(height: 10),
+                if (_maskedImage != null) _buildResultBar(),
+                const SizedBox(height: 12),
+                _buildActionButtons(),
+              ],
             ),
-            const SizedBox(height: 12),
-            if (_maskedImage != null) _buildResultBar(),
-            const SizedBox(height: 12),
-            _buildActionButtons(),
-          ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildOnDeviceBadge() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Icon(Icons.lock_outline, size: 14, color: AppColors.accent),
+        const SizedBox(width: 6),
+        Text(
+          S.onDeviceBadge,
+          style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+        ),
+      ],
     );
   }
 
