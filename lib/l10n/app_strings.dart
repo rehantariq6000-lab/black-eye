@@ -38,6 +38,7 @@ class S {
 
   static String get settings => _pick('Settings', 'Einstellungen');
   static String get whatToDetect => _pick('What to detect', 'Was erkennen');
+  static String get selectedLabel => _pick('selected', 'ausgewählt');
   static String get maskingStyle => _pick('Masking style', 'Maskierungsstil');
   static String get yourKeywords =>
       _pick('Your own keywords', 'Eigene Schlüsselwörter');

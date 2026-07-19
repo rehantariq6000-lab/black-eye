@@ -4,6 +4,7 @@ import '../l10n/app_strings.dart';
 import '../models/detection_category.dart';
 import '../models/mask_style.dart';
 import '../services/settings_service.dart';
+import '../theme.dart';
 
 /// Lets the user choose the language, what Black Eye looks for (categories +
 /// own keywords), and how it hides things (the mask style). Everything is
@@ -90,12 +91,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildLanguagePicker(),
                 const Divider(),
                 _sectionTitle(S.whatToDetect),
-                for (final category in kAllCategories)
-                  SwitchListTile(
-                    title: Text(S.categoryLabel(category.key)),
-                    value: _enabledKeys.contains(category.key),
-                    onChanged: (isOn) => _toggleCategory(category.key, isOn),
-                  ),
+                _buildDetectDropdown(),
                 const Divider(),
                 _sectionTitle(S.maskingStyle),
                 for (final style in MaskStyle.values)
@@ -121,6 +117,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: Text(text,
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+    );
+  }
+
+  /// A collapsible dropdown of checkboxes. Ticking a box turns that category
+  /// on; the scanner reads exactly this list, so what is ticked is what gets
+  /// hidden.
+  Widget _buildDetectDropdown() {
+    final selected = _enabledKeys.length;
+    final total = kAllCategories.length;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        child: Theme(
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            leading: const Icon(Icons.shield_outlined, color: AppColors.accent),
+            title: Text(S.whatToDetect),
+            subtitle: Text('$selected / $total ${S.selectedLabel}',
+                style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+            childrenPadding: const EdgeInsets.only(bottom: 8),
+            children: [
+              for (final category in kAllCategories)
+                CheckboxListTile(
+                  dense: true,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  activeColor: AppColors.accent,
+                  value: _enabledKeys.contains(category.key),
+                  onChanged: (v) => _toggleCategory(category.key, v ?? false),
+                  title: Text(S.categoryLabel(category.key)),
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
