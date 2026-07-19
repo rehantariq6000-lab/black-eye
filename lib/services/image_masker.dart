@@ -17,10 +17,14 @@ class ImageMasker {
     List<DetectionMatch> matches,
     MaskStyle style,
   ) {
-    final image = img.decodeImage(originalBytes);
+    var image = img.decodeImage(originalBytes);
     if (image == null) {
       throw Exception('Could not read the selected image.');
     }
+    // Apply the photo's rotation so pixels line up with the OCR boxes
+    // (camera photos often carry an orientation flag). No-op for screenshots.
+    image = img.bakeOrientation(image);
+
     applyMasks(image, matches, style);
     return Uint8List.fromList(img.encodeJpg(image));
   }
@@ -28,10 +32,15 @@ class ImageMasker {
   /// Hides the areas directly on the given [image] (edited in place).
   void applyMasks(img.Image image, List<DetectionMatch> matches, MaskStyle style) {
     for (final match in matches) {
-      final x = match.box.left.round().clamp(0, image.width - 1);
-      final y = match.box.top.round().clamp(0, image.height - 1);
-      final w = match.box.width.round().clamp(1, image.width - x);
-      final h = match.box.height.round().clamp(1, image.height - y);
+      // Pad each box a little so the whole value is covered with no readable
+      // edges, and so small OCR position errors don't leave text peeking out.
+      final padX = math.max(3, (match.box.width * 0.06)).round();
+      final padY = math.max(3, (match.box.height * 0.18)).round();
+
+      final x = (match.box.left.round() - padX).clamp(0, image.width - 1);
+      final y = (match.box.top.round() - padY).clamp(0, image.height - 1);
+      final w = (match.box.width.round() + padX * 2).clamp(1, image.width - x);
+      final h = (match.box.height.round() + padY * 2).clamp(1, image.height - y);
 
       switch (style) {
         case MaskStyle.blur:
@@ -48,15 +57,17 @@ class ImageMasker {
 
   void _blurRegion(img.Image image, int x, int y, int w, int h) {
     final region = img.copyCrop(image, x: x, y: y, width: w, height: h);
-    final blurred = img.gaussianBlur(region, radius: 12);
+    // A strong blur relative to the region height, so text is unreadable.
+    final radius = math.max(8, (h * 0.6)).round();
+    final blurred = img.gaussianBlur(region, radius: radius);
     img.compositeImage(image, blurred, dstX: x, dstY: y);
   }
 
   void _pixelateRegion(img.Image image, int x, int y, int w, int h) {
     final region = img.copyCrop(image, x: x, y: y, width: w, height: h);
     final small = img.copyResize(region,
-        width: math.max(1, w ~/ 10),
-        height: math.max(1, h ~/ 10),
+        width: math.max(1, w ~/ 12),
+        height: math.max(1, h ~/ 12),
         interpolation: img.Interpolation.nearest);
     final blocky = img.copyResize(small,
         width: w, height: h, interpolation: img.Interpolation.nearest);

@@ -6,31 +6,61 @@ import 'ocr_models.dart';
 
 /// Turns recognised text into a list of sensitive areas to blur.
 ///
-/// This is shared by both OCR engines (ML Kit on mobile, Tesseract on the
-/// web) so the detection rules and the tight word-level masking behave
-/// exactly the same on every platform.
+/// Shared by both OCR engines (ML Kit on mobile, Tesseract on the web). It
+/// checks each line two ways so nothing slips through:
+///   1. Whole-line match — catches values split across several words, like a
+///      card number "5412 7512 3412 3456" or a spaced IBAN.
+///   2. Single-word match — catches values the OCR returns as one token, like
+///      an email, an SSN "478-63-7291", or an ID "S123-456-789-012".
+/// A word is blurred if it matches either way, so every enabled category is
+/// reliably covered.
 List<DetectionMatch> classifyLines(
   List<OcrLine> lines,
   Set<String> enabledKeys,
   List<String> keywords,
 ) {
-  final matches = <DetectionMatch>[];
+  final out = <DetectionMatch>[];
   for (final line in lines) {
-    _matchLine(line, enabledKeys, keywords, matches);
+    final blur = <OcrWord, String>{}; // word -> label
+
+    // 1. Whole-line matches: mark the words inside each matched value.
+    final lineHits = _hits(line.text, enabledKeys, keywords);
+    for (final hit in lineHits) {
+      for (final word in line.words) {
+        final w = word.text.trim();
+        if (w.isNotEmpty && (hit.text.contains(w) || w.contains(hit.text))) {
+          blur[word] = hit.label;
+        }
+      }
+    }
+
+    // 2. Single-word matches: catch tokens the line scan missed.
+    for (final word in line.words) {
+      if (blur.containsKey(word)) continue;
+      final wordHits = _hits(word.text, enabledKeys, keywords);
+      if (wordHits.isNotEmpty) blur[word] = wordHits.first.label;
+    }
+
+    blur.forEach((word, label) {
+      out.add(DetectionMatch(box: word.box, categoryLabel: label));
+    });
+
+    // Safety net: a line matched but we couldn't line up any word — blur it.
+    if (lineHits.isNotEmpty && blur.isEmpty) {
+      final b = _lineBounds(line);
+      if (b != null) {
+        out.add(DetectionMatch(box: b, categoryLabel: lineHits.first.label));
+      }
+    }
   }
-  return matches;
+  return out;
 }
 
-void _matchLine(
-  OcrLine line,
-  Set<String> enabledKeys,
-  List<String> keywords,
-  List<DetectionMatch> out,
-) {
-  final text = line.text;
+/// Every sensitive value found in [text], with its category label.
+List<_Hit> _hits(String text, Set<String> enabledKeys, List<String> keywords) {
   final hits = <_Hit>[];
+  if (text.trim().isEmpty) return hits;
 
-  // The user's own keywords.
   final lower = text.toLowerCase();
   for (final word in keywords) {
     if (word.isEmpty) continue;
@@ -40,38 +70,18 @@ void _matchLine(
     }
   }
 
-  // The built-in RegEx categories.
   for (final category in kAllCategories) {
-    if (category.key == kQrKey) continue; // QR is handled by the detector
+    if (category.key == kQrKey) continue;
     if (!enabledKeys.contains(category.key)) continue;
     for (final match in category.pattern.allMatches(text)) {
-      hits.add(_Hit(match.group(0)!, category.label));
+      final value = match.group(0)!;
+      if (category.validate != null && !category.validate!(value)) continue;
+      hits.add(_Hit(value, category.label));
     }
   }
-
-  if (hits.isEmpty) return;
-
-  for (final hit in hits) {
-    final boxes = <DetectionMatch>[];
-    for (final word in line.words) {
-      final w = word.text.trim();
-      if (w.isNotEmpty && hit.text.contains(w)) {
-        boxes.add(DetectionMatch(box: word.box, categoryLabel: hit.label));
-      }
-    }
-    if (boxes.isEmpty) {
-      // Fallback: if we cannot line up the words, blur the whole line.
-      final lineBox = _lineBounds(line);
-      if (lineBox != null) {
-        out.add(DetectionMatch(box: lineBox, categoryLabel: hit.label));
-      }
-    } else {
-      out.addAll(boxes);
-    }
-  }
+  return hits;
 }
 
-/// The bounding box that covers every word in a line.
 Rect? _lineBounds(OcrLine line) {
   if (line.words.isEmpty) return null;
   var rect = line.words.first.box;

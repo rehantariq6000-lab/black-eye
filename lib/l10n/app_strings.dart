@@ -154,10 +154,14 @@ class S {
       case 'card':
         return _pick('Credit / debit card numbers',
             'Kredit-/Debitkartennummern');
+      case 'ssn':
+        return _pick('Social security numbers', 'Sozialversicherungsnummern');
       case 'iban':
         return _pick('Bank account / IBAN', 'Bankkonto / IBAN');
       case 'id':
         return _pick('ID / passport numbers', 'Ausweis-/Passnummern');
+      case 'address':
+        return _pick('Postal addresses', 'Postanschriften');
       case 'qr':
         return _pick('QR codes', 'QR-Codes');
       default:
