@@ -46,6 +46,22 @@ class S {
       _pick('e.g. a name or project', 'z. B. ein Name oder Projekt');
   static String get noKeywords =>
       _pick('No keywords yet.', 'Noch keine Schlüsselwörter.');
+
+  // Shortcuts (saved presets)
+  static String get shortcuts => _pick('Shortcuts', 'Schnellzugriffe');
+  static String get shortcutsHint => _pick(
+      'Save your current detection + masking settings, then apply them in one tap.',
+      'Speichere deine aktuellen Einstellungen und wende sie mit einem Tipp an.');
+  static String get saveShortcut =>
+      _pick('Save current as shortcut', 'Aktuelle als Schnellzugriff speichern');
+  static String get shortcutNameHint =>
+      _pick('Shortcut name (e.g. Work docs)', 'Name (z. B. Arbeitsdokumente)');
+  static String get noShortcuts =>
+      _pick('No shortcuts yet.', 'Noch keine Schnellzugriffe.');
+  static String get save => _pick('Save', 'Speichern');
+  static String get cancel => _pick('Cancel', 'Abbrechen');
+  static String shortcutApplied(String name) =>
+      _pick('Applied "$name"', '„$name" angewendet');
   static String get language => _pick('Language', 'Sprache');
 
   static String get privacyStats =>

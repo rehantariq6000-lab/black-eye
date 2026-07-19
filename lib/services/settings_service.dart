@@ -1,7 +1,10 @@
+import 'dart:convert';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/detection_category.dart';
 import '../models/mask_style.dart';
+import '../models/shortcut.dart';
 
 /// Stores everything Black Eye needs to remember between sessions:
 /// which categories are on, the user's own keywords, the chosen mask style,
@@ -49,6 +52,46 @@ class SettingsService {
   Future<void> setLanguageIndex(int index) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_languageKey, index);
+  }
+
+  // ---- Shortcuts (saved presets) -------------------------------------------
+
+  static const String _shortcutsKey = 'shortcuts';
+
+  Future<List<Shortcut>> loadShortcuts() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_shortcutsKey);
+    if (raw == null) return [];
+    final list = jsonDecode(raw) as List;
+    return list
+        .map((e) => Shortcut.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Adds or replaces a shortcut with the same name.
+  Future<void> saveShortcut(Shortcut shortcut) async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = await loadShortcuts()
+      ..removeWhere((s) => s.name == shortcut.name)
+      ..add(shortcut);
+    await prefs.setString(
+        _shortcutsKey, jsonEncode(list.map((s) => s.toJson()).toList()));
+  }
+
+  Future<void> deleteShortcut(String name) async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = await loadShortcuts()..removeWhere((s) => s.name == name);
+    await prefs.setString(
+        _shortcutsKey, jsonEncode(list.map((s) => s.toJson()).toList()));
+  }
+
+  /// Applies a shortcut: turns the listed categories on (others off) and sets
+  /// the masking style, so the next scan uses exactly this preset.
+  Future<void> applyShortcut(Shortcut shortcut) async {
+    for (final category in kAllCategories) {
+      await setEnabled(category.key, shortcut.categoryKeys.contains(category.key));
+    }
+    await setMaskStyle(MaskStyle.fromIndex(shortcut.maskStyleIndex));
   }
 
   // ---- Categories ----------------------------------------------------------

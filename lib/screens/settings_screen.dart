@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../l10n/app_strings.dart';
 import '../models/detection_category.dart';
 import '../models/mask_style.dart';
+import '../models/shortcut.dart';
 import '../services/settings_service.dart';
 import '../theme.dart';
 
@@ -18,10 +19,9 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final SettingsService _settings = SettingsService();
-  final TextEditingController _keywordController = TextEditingController();
 
   Set<String> _enabledKeys = {};
-  List<String> _keywords = [];
+  List<Shortcut> _shortcuts = [];
   MaskStyle _maskStyle = MaskStyle.blur;
   bool _loading = true;
 
@@ -31,19 +31,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _load();
   }
 
-  @override
-  void dispose() {
-    _keywordController.dispose();
-    super.dispose();
-  }
-
   Future<void> _load() async {
     final keys = await _settings.loadEnabledKeys();
-    final keywords = await _settings.loadKeywords();
+    final shortcuts = await _settings.loadShortcuts();
     final style = await _settings.loadMaskStyle();
     setState(() {
       _enabledKeys = keys;
-      _keywords = keywords;
+      _shortcuts = shortcuts;
       _maskStyle = style;
       _loading = false;
     });
@@ -56,17 +50,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await _settings.setEnabled(key, isOn);
   }
 
-  Future<void> _addKeyword() async {
-    final word = _keywordController.text.trim();
-    if (word.isEmpty) return;
-    await _settings.addKeyword(word);
-    _keywordController.clear();
-    setState(() => _keywords = List.of(_keywords)..add(word));
+  // ---- Shortcuts -----------------------------------------------------------
+
+  Future<void> _saveShortcutDialog() async {
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(S.saveShortcut),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: InputDecoration(hintText: S.shortcutNameHint),
+          onSubmitted: (v) => Navigator.pop(context, v.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(S.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: Text(S.save),
+          ),
+        ],
+      ),
+    );
+    if (name == null || name.isEmpty) return;
+    final shortcut = Shortcut(
+      name: name,
+      categoryKeys: _enabledKeys.toList(),
+      maskStyleIndex: _maskStyle.index,
+    );
+    await _settings.saveShortcut(shortcut);
+    final list = await _settings.loadShortcuts();
+    setState(() => _shortcuts = list);
   }
 
-  Future<void> _removeKeyword(String word) async {
-    await _settings.removeKeyword(word);
-    setState(() => _keywords = List.of(_keywords)..remove(word));
+  Future<void> _applyShortcut(Shortcut shortcut) async {
+    await _settings.applyShortcut(shortcut);
+    setState(() {
+      _enabledKeys = shortcut.categoryKeys.toSet();
+      _maskStyle = MaskStyle.fromIndex(shortcut.maskStyleIndex);
+    });
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(S.shortcutApplied(shortcut.name))),
+      );
+    }
+  }
+
+  Future<void> _deleteShortcut(String name) async {
+    await _settings.deleteShortcut(name);
+    final list = await _settings.loadShortcuts();
+    setState(() => _shortcuts = list);
   }
 
   Future<void> _setMaskStyle(MaskStyle style) async {
@@ -103,9 +140,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onTap: () => _setMaskStyle(style),
                   ),
                 const Divider(),
-                _sectionTitle(S.yourKeywords),
-                _buildKeywordField(),
-                _buildKeywordChips(),
+                _sectionTitle(S.shortcuts),
+                _buildShortcuts(),
                 const SizedBox(height: 24),
               ],
             ),
@@ -169,44 +205,52 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildKeywordField() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _keywordController,
-              decoration: InputDecoration(
-                hintText: S.keywordHint,
-                border: const OutlineInputBorder(),
+  Widget _buildShortcuts() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Text(S.shortcutsHint,
+              style: const TextStyle(color: AppColors.textMuted, fontSize: 13)),
+        ),
+        if (_shortcuts.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Text(S.noShortcuts,
+                style: const TextStyle(color: Colors.grey)),
+          )
+        else
+          for (final shortcut in _shortcuts)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+              child: Card(
+                margin: EdgeInsets.zero,
+                child: ListTile(
+                  leading: const Icon(Icons.bolt, color: AppColors.accent),
+                  title: Text(shortcut.name),
+                  subtitle: Text(
+                    '${shortcut.categoryKeys.length} ${S.selectedLabel} · '
+                    '${MaskStyle.fromIndex(shortcut.maskStyleIndex).label}',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete_outline),
+                    onPressed: () => _deleteShortcut(shortcut.name),
+                  ),
+                  onTap: () => _applyShortcut(shortcut),
+                ),
               ),
-              onSubmitted: (_) => _addKeyword(),
             ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+          child: OutlinedButton.icon(
+            icon: const Icon(Icons.add),
+            label: Text(S.saveShortcut),
+            onPressed: _saveShortcutDialog,
           ),
-          const SizedBox(width: 8),
-          IconButton.filled(icon: const Icon(Icons.add), onPressed: _addKeyword),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildKeywordChips() {
-    if (_keywords.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.all(16),
-        child: Text(S.noKeywords, style: const TextStyle(color: Colors.grey)),
-      );
-    }
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Wrap(
-        spacing: 8,
-        children: [
-          for (final word in _keywords)
-            Chip(label: Text(word), onDeleted: () => _removeKeyword(word)),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
