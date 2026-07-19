@@ -14,12 +14,18 @@ import 'ocr_models.dart';
 ///      an email, an SSN "478-63-7291", or an ID "S123-456-789-012".
 /// A word is blurred if it matches either way, so every enabled category is
 /// reliably covered.
+/// Field labels that are followed by a person's name.
+const _nameLabels = {'name', 'ln', 'fn', 'holder', 'inhaber', 'kontoinhaber'};
+
 List<DetectionMatch> classifyLines(
   List<OcrLine> lines,
   Set<String> enabledKeys,
   List<String> keywords,
 ) {
   final out = <DetectionMatch>[];
+  final namesOn = enabledKeys.contains(kNameKey);
+  var expectNameNextLine = false;
+
   for (final line in lines) {
     final blur = <OcrWord, String>{}; // word -> label
 
@@ -41,6 +47,33 @@ List<DetectionMatch> classifyLines(
       if (wordHits.isNotEmpty) blur[word] = wordHits.first.label;
     }
 
+    // 3. Names: blur the value after a name label ("Full Name: ...", "LN ..."),
+    //    or a name-looking line that follows a bare label line ("CARD HOLDER").
+    if (namesOn) {
+      final words = line.words;
+      var lastLabel = -1;
+      for (var i = 0; i < words.length; i++) {
+        if (_nameLabels.contains(_normalize(words[i].text))) lastLabel = i;
+      }
+      if (lastLabel >= 0) {
+        var blurred = false;
+        for (var i = lastLabel + 1; i < words.length; i++) {
+          if (_nameLike(words[i].text)) {
+            blur[words[i]] = 'Name';
+            blurred = true;
+          }
+        }
+        expectNameNextLine = !blurred; // label with no value -> name is next
+      } else if (expectNameNextLine && _looksLikeName(line)) {
+        for (final w in line.words) {
+          blur[w] = 'Name';
+        }
+        expectNameNextLine = false;
+      } else {
+        expectNameNextLine = false;
+      }
+    }
+
     blur.forEach((word, label) {
       out.add(DetectionMatch(box: word.box, categoryLabel: label));
     });
@@ -54,6 +87,24 @@ List<DetectionMatch> classifyLines(
     }
   }
   return out;
+}
+
+/// Lower-cased letters only (drops ":", ".", etc.) for label comparison.
+String _normalize(String s) =>
+    s.toLowerCase().replaceAll(RegExp(r'[^a-zäöüß]'), '');
+
+/// A single word that looks like part of a name (letters, maybe an initial).
+bool _nameLike(String word) {
+  final t = word.replaceAll(RegExp(r'[.,]'), '').trim();
+  return t.isNotEmpty && RegExp(r'^[A-Za-zÀ-ſ]+$').hasMatch(t);
+}
+
+/// A whole line that looks like a name: up to 4 name-like words.
+bool _looksLikeName(OcrLine line) {
+  final words =
+      line.words.where((w) => w.text.trim().isNotEmpty).toList();
+  if (words.isEmpty || words.length > 4) return false;
+  return words.every((w) => _nameLike(w.text));
 }
 
 /// Every sensitive value found in [text], with its category label.

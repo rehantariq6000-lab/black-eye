@@ -169,8 +169,11 @@ class S {
       case 'phone':
         return _pick('Phone numbers', 'Telefonnummern');
       case 'card':
-        return _pick('Credit / debit card numbers',
-            'Kredit-/Debitkartennummern');
+        return _pick('Card / long numbers', 'Karten-/lange Nummern');
+      case 'date':
+        return _pick('Dates (birth, etc.)', 'Daten (Geburtstag usw.)');
+      case 'name':
+        return _pick('Names', 'Namen');
       case 'ssn':
         return _pick('Social security numbers', 'Sozialversicherungsnummern');
       case 'iban':

@@ -54,4 +54,40 @@ void main() {
     final matches = classifyLines([line('Project Titan is secret')], allKeys, ['Titan']);
     expect(matches, isNotEmpty);
   });
+
+  // Values taken straight from the demo ID / card / statement image.
+  final demo = <String, String>{
+    'DL number': 'S123-456-789-012',
+    'DOB slashes': '04/22/1998',
+    'DOB written': 'April 22, 1998',
+    'DD long number': '12345678901234567890',
+    'account number': '876543210',
+    'email w/ digits': 'rehan.tariq98@examplemail.com',
+  };
+  demo.forEach((name, value) {
+    test('demo image: $name', () {
+      final m = classifyLines([line('Field: $value')], allKeys, const []);
+      expect(m, isNotEmpty, reason: '"$value" ($name) missed');
+    });
+  });
+
+  test('demo image: inline name label is hidden', () {
+    final m = classifyLines([line('Full Name: Rehan Alexander Tariq')], allKeys, const []);
+    expect(m.length, greaterThanOrEqualTo(3)); // Rehan, Alexander, Tariq
+  });
+
+  test('demo image: LN / FN license names are hidden', () {
+    final m = classifyLines([line('LN TARIQ'), line('FN REHAN ALEXANDER')], allKeys, const []);
+    expect(m.length, greaterThanOrEqualTo(3));
+  });
+
+  test('demo image: cardholder name after CARD HOLDER label', () {
+    final m = classifyLines([line('CARD HOLDER'), line('REHAN A. TARIQ')], allKeys, const []);
+    expect(m, isNotEmpty);
+  });
+
+  test('does not blur document headers', () {
+    final m = classifyLines([line('PERSONAL INFORMATION'), line('ACCOUNT STATEMENT')], allKeys, const []);
+    expect(m, isEmpty);
+  });
 }

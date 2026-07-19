@@ -22,6 +22,10 @@ class DetectionCategory {
 /// by a regular expression).
 const String kQrKey = 'qr';
 
+/// The settings key for name detection (handled by field labels in the
+/// classifier, not by a regular expression).
+const String kNameKey = 'name';
+
 int _digits(String s) => s.replaceAll(RegExp(r'\D'), '').length;
 
 /// All categories the app supports. Patterns are deliberately generous so
@@ -44,12 +48,12 @@ final List<DetectionCategory> kAllCategories = [
   ),
   DetectionCategory(
     key: 'card',
-    label: 'Credit / debit card numbers',
-    // 13–19 digits, optionally split into groups by spaces or dashes.
-    pattern: RegExp(r'\d(?:[ \-]?\d){12,18}'),
+    label: 'Card / long numbers',
+    // 13–20 digits (cards, plus long document numbers), possibly grouped.
+    pattern: RegExp(r'\d(?:[ \-]?\d){12,20}'),
     validate: (m) {
       final d = _digits(m);
-      return d >= 13 && d <= 19;
+      return d >= 13 && d <= 22;
     },
   ),
   DetectionCategory(
@@ -83,6 +87,23 @@ final List<DetectionCategory> kAllCategories = [
       r'|\b\d{4,5}\s+[A-Za-zÀ-ſ]{3,}',
       caseSensitive: false,
     ),
+  ),
+  DetectionCategory(
+    key: 'date',
+    label: 'Dates (birth, etc.)',
+    // 04/22/1998, 22.04.1998, "April 22, 1998", "22 April 1998".
+    pattern: RegExp(
+      r'\b\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4}\b'
+      r'|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}\b'
+      r'|\b\d{1,2}\.?\s+(?:januar|februar|märz|april|mai|juni|juli|august|september|oktober|november|dezember)\s+\d{4}\b',
+      caseSensitive: false,
+    ),
+  ),
+  DetectionCategory(
+    key: kNameKey,
+    label: 'Names',
+    // Names are found by field labels in the classifier, not by this pattern.
+    pattern: RegExp(r'(?!x)x'),
   ),
   DetectionCategory(
     key: kQrKey,
