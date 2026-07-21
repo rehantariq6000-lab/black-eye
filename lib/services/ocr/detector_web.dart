@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:js_interop';
+import 'dart:js_interop_unsafe';
 import 'dart:typed_data';
 import 'dart:ui';
 
@@ -27,11 +28,17 @@ class WebDetector implements Detector {
     final dataUrl = 'data:image/png;base64,${base64Encode(bytes)}';
     final langs = german ? 'eng+deu' : 'eng';
 
-    final result = await _recognize(dataUrl.toJS, langs.toJS).toDart;
+    // Tesseract.js v5 only returns `data.text` unless we explicitly ask for the
+    // block/line/word structure. Passing `{ blocks: true }` makes it include
+    // `data.lines[].words[].bbox`, which we need to blur each word tightly.
+    final options = JSObject();
+    options.setProperty('blocks'.toJS, true.toJS);
+    final result = await _recognize(dataUrl.toJS, langs.toJS, options).toDart;
 
     // Build our shared line/word model from Tesseract's result.
     final lines = <OcrLine>[];
-    final jsLines = result.data.lines.toDart;
+    final jsLinesRaw = result.data.lines;
+    final jsLines = jsLinesRaw == null ? <_TLine>[] : jsLinesRaw.toDart;
     for (final jsLine in jsLines) {
       final words = <OcrWord>[];
       final jsWords = jsLine.words.toDart;
@@ -60,14 +67,15 @@ class WebDetector implements Detector {
 // ---- Tesseract.js interop ------------------------------------------------
 
 @JS('Tesseract.recognize')
-external JSPromise<_TResult> _recognize(JSString image, JSString langs);
+external JSPromise<_TResult> _recognize(
+    JSString image, JSString langs, JSObject options);
 
 extension type _TResult(JSObject _) implements JSObject {
   external _TData get data;
 }
 
 extension type _TData(JSObject _) implements JSObject {
-  external JSArray<_TLine> get lines;
+  external JSArray<_TLine>? get lines;
 }
 
 extension type _TLine(JSObject _) implements JSObject {
